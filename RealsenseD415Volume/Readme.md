@@ -66,11 +66,51 @@ sudo /opt/anaconda3/envs/realsense/bin/python camera_test.py
 ```
 
 ### Step 11 — Live Camera Feed Working
-Updated `camera_test.py` to show two real-time windows:
-- **Color** — normal RGB camera feed
-- **Depth** — heatmap where red = close, blue = far (normalized per frame)
+Got first live feed showing color and depth in separate windows. Fixed depth visualization using `cv2.normalize` so near/far colors are accurate.
 
-Fixed depth visualization by using `cv2.normalize` instead of fixed alpha scaling so near/far colors are accurate.
+### Step 12 — Added Depth Accuracy Filters
+Applied Intel's recommended filter pipeline in the correct order for stereo cameras:
+1. Decimation filter (reduces noise, magnitude = 2)
+2. Depth → Disparity transform
+3. Spatial filter (edge-preserving smoothing)
+4. Temporal filter (reduces flicker between frames)
+5. Disparity → Depth transform
+6. Hole filling (fills missing pixels)
+
+Also aligned depth frame to color frame using `rs.align` so both frames match pixel-for-pixel.
+Clipped depth range to **0.1m – 3.0m** (D415 optimal range) for accurate color mapping.
+
+### Step 13 — Fixed Unstable/Flickering Color Feed
+Camera auto-exposure and auto white balance were causing constant flickering. Fixed by:
+- Warming up camera for 60 frames
+- Locking color sensor: disabled auto exposure + auto white balance, set fixed exposure (150µs) and gain (64)
+- Locking depth sensor: disabled auto exposure
+
+### Step 14 — Single Window with Two Panels
+Combined everything into one window:
+- **Left panel** — normal color feed with distance label and close/far status
+- **Right panel** — depth heatmap (red = close, blue = far, black = no data)
+
+Distance status zones:
+- VERY CLOSE = < 50 cm (red)
+- CLOSE = < 1.5 m (orange)
+- MID = < 2.5 m (green)
+- FAR = > 2.5 m (blue)
+
+### How to Run
+```bash
+sudo /opt/anaconda3/envs/realsense/bin/python camera_test.py
+```
+
+---
+
+## What camera_test.py Does (Current State)
+1. Starts the D415 pipeline with color + depth streams at 640x480 @ 30fps
+2. Warms up for 60 frames then locks exposure and white balance for stable image
+3. Every frame: aligns depth to color, applies full filter pipeline
+4. Displays one window with color on the left and depth heatmap on the right
+5. Shows center distance in cm and CLOSE/MID/FAR status on both panels
+6. Press Q to quit
 
 ---
 
