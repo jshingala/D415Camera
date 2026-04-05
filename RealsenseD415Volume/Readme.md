@@ -104,13 +104,62 @@ sudo /opt/anaconda3/envs/realsense/bin/python camera_test.py
 
 ---
 
-## What camera_test.py Does (Current State)
-1. Starts the D415 pipeline with color + depth streams at 640x480 @ 30fps
-2. Warms up for 60 frames then locks exposure and white balance for stable image
-3. Every frame: aligns depth to color, applies full filter pipeline
-4. Displays one window with color on the left and depth heatmap on the right
-5. Shows center distance in cm and CLOSE/MID/FAR status on both panels
-6. Press Q to quit
+### Step 15 — Created yolo_detect.py
+Added YOLO11 nano model on top of camera feed for real-time object detection.
+```bash
+pip install ultralytics
+```
+- Model: `yolo11n.pt` (auto-downloaded on first run)
+- Used `model.track(persist=True)` instead of `model()` for stable object IDs across frames
+- Confidence threshold set to 0.5 to reduce false detections
+- Distance smoothed with median over 10 frames per track ID
+- Box color changes by distance: red = close, orange = mid, blue = far
+
+### Step 16 — Created volumetric.py
+New file for dimension measurement. Key decisions made:
+
+**What W and H mean from the camera:**
+- **W** = horizontal width (left → right) — measurable from front camera
+- **H** = vertical height (top → bottom) — measurable from front camera
+- **L** = depth front-to-back — NOT measurable from front-facing camera (needs top-down setup)
+
+**Measurement approach:**
+1. Get object surface depth from center patch of bounding box
+2. Create ±10cm depth mask to isolate only object pixels (removes background)
+3. Deproject masked pixels to real 3D coordinates using camera intrinsics
+4. Use 10th–90th percentile of X and Y extents to cut outliers
+5. Smooth W and H using EMA (alpha=0.08) with 30% jump rejection — prevents flickering
+
+**Hollow/Solid detection:**
+- Compares inner center depth vs object surface depth
+- If center is >3cm deeper than surface → EMPTY/HOLLOW, else SOLID
+
+### Step 17 — Tuned for Accuracy
+- YOLO bounding box shrunk 5% inward on all sides to remove padding inflation
+- Switched from median smoothing to EMA for smoother real-time values
+- Outlier rejection: updates only if new value is within 30% of current stable value
+- Clipped depth minimum raised from 0.1m to 0.4m (D415 reliable range)
+
+### Step 18 — Single Object Mode
+Limited detection to one object at a time — the largest bounding box in frame.
+Prevents confusion when multiple objects are visible.
+
+---
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `camera_test.py` | Basic camera test: color + depth feed, close/far label |
+| `yolo_detect.py` | YOLO object detection + distance per object |
+| `volumetric.py` | Full pipeline: YOLO + W/H measurement + hollow detection |
+
+## How to Run Each File
+```bash
+sudo /opt/anaconda3/envs/realsense/bin/python camera_test.py
+sudo /opt/anaconda3/envs/realsense/bin/python yolo_detect.py
+sudo /opt/anaconda3/envs/realsense/bin/python volumetric.py
+```
 
 ---
 
@@ -121,7 +170,7 @@ sudo /opt/anaconda3/envs/realsense/bin/python camera_test.py
 | `pyrealsense2` | Talk to the D415 camera |
 | `numpy` | Math/array operations on depth data |
 | `opencv` (cv2) | Frame visualization and image processing |
-| `open3d` | 3D point cloud and dimension extraction |
+| `ultralytics` | YOLO11 object detection and tracking |
 
 ---
 

@@ -128,6 +128,12 @@ while True:
     results     = model.track(color_resized, persist=True, verbose=False, conf=0.5)[0]
     valid_boxes = [b for b in results.boxes if b.id is not None]
 
+    # Keep only the largest box (closest/most prominent object)
+    if len(valid_boxes) > 1:
+        valid_boxes = [max(valid_boxes, key=lambda b: (
+            (int(b.xyxy[0][2]) - int(b.xyxy[0][0])) * (int(b.xyxy[0][3]) - int(b.xyxy[0][1]))
+        ))]
+
     header = np.zeros((80, 1280, 3), dtype=np.uint8)
     cv2.putText(header, f"Objects: {len(valid_boxes)}", (10, 25),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
